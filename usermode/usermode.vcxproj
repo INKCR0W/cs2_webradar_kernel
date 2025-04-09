@@ -37,7 +37,6 @@
     <ClInclude Include="src\common.hpp" />
     <ClInclude Include="src\core\interfaces.hpp" />
     <ClInclude Include="src\core\sdk.hpp" />
-    <ClInclude Include="src\driver\driver.hpp" />
     <ClInclude Include="src\sdk\entity_handle.hpp" />
     <ClInclude Include="src\sdk\datatypes\utl_vector.hpp" />
     <ClInclude Include="src\sdk\entity.hpp" />
