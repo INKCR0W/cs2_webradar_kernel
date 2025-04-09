@@ -5,6 +5,8 @@ VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "usermode", "usermode.vcxproj", "{6A55EA2E-776D-410E-B7F1-DEA56E9BDFCD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "kernelmode", "..\kernelmode\kernelmode.vcxproj", "{CEB5196A-C5EA-9BF8-6D56-C030F9D19141}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		release|x64 = release|x64
@@ -12,6 +14,9 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{6A55EA2E-776D-410E-B7F1-DEA56E9BDFCD}.release|x64.ActiveCfg = release|x64
 		{6A55EA2E-776D-410E-B7F1-DEA56E9BDFCD}.release|x64.Build.0 = release|x64
+		{CEB5196A-C5EA-9BF8-6D56-C030F9D19141}.release|x64.ActiveCfg = Release|x64
+		{CEB5196A-C5EA-9BF8-6D56-C030F9D19141}.release|x64.Build.0 = Release|x64
+		{CEB5196A-C5EA-9BF8-6D56-C030F9D19141}.release|x64.Deploy.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
