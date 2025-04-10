@@ -17,18 +17,18 @@ namespace driver {
 	namespace codes {
 		// Used to setup the driver.
 		constexpr ULONG attach =
-			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x676, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
+			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114514, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 
 		// Read process memory.
 		constexpr ULONG read =
-			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x678, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
+			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114515, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 
 		// Write process memory.
 		constexpr ULONG write =
-			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x679, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
+			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114516, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 
 		constexpr ULONG get_module =
-			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x680, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
+			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114517, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 	}  // namespace codes
 
 	// Shared between user mode & kernel mode.
@@ -85,7 +85,6 @@ namespace driver {
 		return 0; // failed
 	}
 
-
 	NTSTATUS GetModuleBaseProcess(PEPROCESS proc, ULONG64* buffer) {
 		NTSTATUS status = STATUS_UNSUCCESSFUL;
 
@@ -104,6 +103,55 @@ namespace driver {
 		status = STATUS_SUCCESS;
 
 		return status;
+	}
+
+	HANDLE find_process_id_by_name(const wchar_t* process_name) {
+		NTSTATUS status;
+		PVOID buffer;
+		PSYSTEM_PROCESS_INFORMATION spi;
+		ULONG bufferSize = 0;
+		HANDLE processId = NULL;
+
+		status = ZwQuerySystemInformation(SystemProcessInformation, NULL, 0, &bufferSize);
+		if (status != STATUS_INFO_LENGTH_MISMATCH) {
+			return NULL;
+		}
+
+		buffer = ExAllocatePool2(POOL_FLAG_NON_PAGED, bufferSize, 'prct');
+		if (buffer == NULL) {
+			debug_print("Failed to allocate memory\n");
+			return NULL;
+		}
+
+		status = ZwQuerySystemInformation(SystemProcessInformation, buffer, bufferSize, NULL);
+		if (!NT_SUCCESS(status)) {
+			ExFreePoolWithTag(buffer, 'prct');
+			return NULL;
+		}
+
+		spi = (PSYSTEM_PROCESS_INFORMATION)buffer;
+		for (;;) {
+			if (spi->ImageName.Length > 0 && spi->ImageName.Buffer != NULL) {
+				if (_wcsicmp(spi->ImageName.Buffer, process_name) == 0) {
+					processId = spi->UniqueProcessId;
+					break;
+				}
+			}
+
+			if (spi->NextEntryOffset == 0) {
+				break;
+			}
+
+			spi = (PSYSTEM_PROCESS_INFORMATION)((PUCHAR)spi + spi->NextEntryOffset);
+		}
+
+		ExFreePoolWithTag(buffer, 'prct');
+
+		return processId;
+	}
+
+	NTSTATUS attach(PEPROCESS* target_process) {
+		return PsLookupProcessByProcessId(find_process_id_by_name(L"cs2.exe"), target_process);
 	}
 
 	NTSTATUS create(PDEVICE_OBJECT device_object, PIRP irp) {
@@ -149,7 +197,7 @@ namespace driver {
 
 		switch (control_code) {
 		case codes::attach:
-			status = PsLookupProcessByProcessId(request->process_id, &target_process);
+			status = attach(&target_process);
 			break;
 
 		case codes::read:
@@ -200,7 +248,7 @@ NTSTATUS driver_main(PDRIVER_OBJECT driver_object, PUNICODE_STRING registry_path
 	debug_print("[+] Driver device successfully created.\n");
 
 	UNICODE_STRING symbolic_link = {};
-	RtlInitUnicodeString(&symbolic_link, L"\\DosDevices\\HimcDriver");
+	RtlInitUnicodeString(&symbolic_link, L"\\DosDevices\\Global\\HimcDriver");
 
 	status = IoCreateSymbolicLink(&symbolic_link, &device_name);
 	if (status != STATUS_SUCCESS) {
@@ -231,7 +279,6 @@ NTSTATUS DriverEntry() {
 
 	UNICODE_STRING driver_name = {};
 	RtlInitUnicodeString(&driver_name, L"\\Driver\\HimcDriver");
-
 
 	return IoCreateDriver(&driver_name, driver_main);
 }
