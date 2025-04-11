@@ -25,8 +25,6 @@ namespace driver {
 
 	// 用户模式与内核模式共享 / Shared between user mode & kernel mode
 	struct Request {
-		HANDLE process_id;  // 进程ID / Process ID
-
 		PVOID target;       // 目标地址 / Target address
 		PVOID buffer;       // 缓冲区 / Buffer
 
@@ -35,7 +33,7 @@ namespace driver {
 	};
 
 	namespace error_codes {
-		// 访问错误 / Access error
+		// 没有错误 / Access
 		static const int ACCESS = 0x00;
 		// 获取驱动错误 / Get driver error
 		static const int GET_DRIVER_ERROR = 0x01;
@@ -49,30 +47,23 @@ namespace driver {
 		// 驱动句柄 / Driver handle
 		HANDLE driver_handle;
 		// 目标进程的PID / Target process PID
-		DWORD pid;
+		uint64_t pid;
 		// 是否已经附加到目标进程 / Whether attached to target process
 		bool attached;
 		// 错误信息 / Error code
 		int error_code;
 
-		// 通过进程名获取进程ID / Get process ID by process name
-		DWORD get_process_id(const wchar_t* process_name);
-
 	public:
 		// 构造函数 / Constructors
 		Driver();
 		Driver(const wchar_t* driver_path);
-		Driver(const wchar_t* driver_path, const wchar_t* process_name);
-		Driver(const wchar_t* driver_path, const DWORD pid);
 
 		virtual ~Driver();  // 析构函数 / Destructor
 
 		// 设置驱动 / Set driver handle
 		bool setDriver(const wchar_t* driver_path);
-		// 附加到目标进程（通过进程名） / Attach to target process by name
-		bool attach(const wchar_t* process_name);
-		// 附加到目标进程（通过进程ID） / Attach to target process by PID
-		bool attach(const DWORD pid);
+		// 附加到目标进程 / Attach to target process
+		bool attach();
 
 		// 获取驱动句柄 / Get driver handle
 		const HANDLE _driver() const;
@@ -92,7 +83,6 @@ namespace driver {
 			T temp = {};
 
 			Request r = {
-				nullptr,
 				reinterpret_cast<PVOID>(addr),
 				&temp,
 				sizeof(T),
@@ -108,7 +98,6 @@ namespace driver {
 		template <typename T>
 		void write_memory(const std::uintptr_t addr, const T& value) {
 			Request r = {
-				nullptr,
 				reinterpret_cast<PVOID>(addr),
 				(PVOID)&value,
 				sizeof(T),
@@ -122,7 +111,6 @@ namespace driver {
 		template <typename T>
 		void read_memory_size(const std::uintptr_t addr, const T* value, size_t size) {
 			Request r = {
-				nullptr,
 				reinterpret_cast<PVOID>(addr),
 				(PVOID)value,
 				size,

@@ -33,8 +33,6 @@ namespace driver {
 
 	// Shared between user mode & kernel mode.
 	struct Request {
-		HANDLE process_id;
-
 		PVOID target;
 		PVOID buffer;
 
@@ -150,8 +148,18 @@ namespace driver {
 		return processId;
 	}
 
-	NTSTATUS attach(PEPROCESS* target_process) {
-		return PsLookupProcessByProcessId(find_process_id_by_name(L"cs2.exe"), target_process);
+	NTSTATUS attach(PEPROCESS* target_process, ULONG64* pid_addr) {
+		NTSTATUS status = STATUS_UNSUCCESSFUL;
+
+		HANDLE pid = find_process_id_by_name(L"cs2.exe");
+
+		if (pid == NULL) {
+			return status;
+		}
+
+		*pid_addr = reinterpret_cast<ULONG64>(pid);
+
+		return PsLookupProcessByProcessId(pid, target_process);
 	}
 
 	NTSTATUS create(PDEVICE_OBJECT device_object, PIRP irp) {
@@ -197,7 +205,8 @@ namespace driver {
 
 		switch (control_code) {
 		case codes::attach:
-			status = attach(&target_process);
+			if (target_process == nullptr)
+				status = attach(&target_process, reinterpret_cast<ULONG64*>(request->buffer));
 			break;
 
 		case codes::read:

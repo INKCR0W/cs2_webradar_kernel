@@ -8,59 +8,17 @@
 
 
 namespace driver {
-	DWORD Driver::get_process_id(const wchar_t* process_name) {
-		DWORD process_id = 0;
-
-		const HANDLE snap_shot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-		if (snap_shot == INVALID_HANDLE_VALUE)
-			return process_id;
-
-		PROCESSENTRY32W entry = {};
-		entry.dwSize = sizeof(decltype(entry));
-
-		if (Process32FirstW(snap_shot, &entry)) {
-			do {
-				if (_wcsicmp(process_name, entry.szExeFile) == 0) {
-					process_id = entry.th32ProcessID;
-					break;
-				}
-			} while (Process32NextW(snap_shot, &entry));
-		}
-
-		CloseHandle(snap_shot);
-
-#ifdef DEBUG
-		std::cout << "process_id got\n";
-#endif // DEBUG
-
-		return process_id;
-	}
-
 	Driver::Driver() : driver_handle(nullptr), pid(0), attached(false), error_code(0) {}
 
-	Driver::Driver(const wchar_t* driver_path) : Driver(driver_path, static_cast<DWORD>(0)) {}
-
-	Driver::Driver(const wchar_t* driver_path, const wchar_t* process_name) : Driver(driver_path, get_process_id(process_name)) {}
-
-	Driver::Driver(const wchar_t* driver_path, const DWORD pid) : pid(pid), attached(false), error_code(0) {
+	Driver::Driver(const wchar_t* driver_path) : pid(0), attached(false), error_code(0) {
 		this->driver_handle = CreateFileW(driver_path, GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-
 
 		if (this->driver_handle == INVALID_HANDLE_VALUE) {
 			this->error_code = error_codes::GET_DRIVER_ERROR;
 			return;
 		}
 
-#ifdef DEBUG
-		std::cout << "driver_handle got\n";
-#endif // DEBUG
-
-		if (pid == 0) {
-			this->error_code = error_codes::GET_PROCESSID_ERROR;
-			return;
-		}
-
-		this->attach(pid);
+		this->attach();
 	}
 
 	Driver::~Driver() {
@@ -73,25 +31,19 @@ namespace driver {
 		return (this->driver_handle != INVALID_HANDLE_VALUE);
 	}
 
-	bool Driver::attach(const wchar_t* process_name) {
-		const DWORD pid = this->get_process_id(process_name);
-
-		if (pid == 0)
-			return false;
-
-		return Driver::attach(pid);
-	}
-
-	bool Driver::attach(const DWORD pid) {
+	bool Driver::attach() {
 		Request r = {
-			reinterpret_cast<HANDLE>(pid),
-			nullptr,
-			nullptr,
+			0,
+			&pid,
 			0,
 			0
 		};
 
 		this->attached = DeviceIoControl(this->driver_handle, codes::attach, &r, sizeof(r), &r, sizeof(r), nullptr, nullptr);
+
+		if (!this->attached) {
+			error_code = error_codes::GET_PROCESSID_ERROR;
+		}
 
 		return this->attached;
 	}
@@ -119,7 +71,6 @@ namespace driver {
 		std::uintptr_t module_base = 0;
 
 		Request r = {
-			0,
 			0,
 			&module_base,
 			0,
