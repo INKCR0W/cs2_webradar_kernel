@@ -11,6 +11,9 @@
 #include <regex>
 #include <thread>
 #include <winternl.h>
+#include <comdef.h>
+#include <Wbemidl.h>
+#include <string>
 
 /* ext/includes */
 #include "ext/nlohmann/json.hpp"
@@ -20,6 +23,9 @@
 
 /* root */
 #include "common.hpp"
+
+/* driver */
+#include "driver/driver.hpp"
 
 /* utils */
 #include "utils/config.hpp"

@@ -20,6 +20,13 @@ bool main()
     }
     LOG_INFO("exception handler initialization completed");
 
+    if (!m_driver->setup())
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        return {};
+    }
+    LOG_INFO("driver initialization completed");
+
     if (!m_memory->setup())
     {
         std::this_thread::sleep_for(std::chrono::seconds(5));

@@ -19,7 +19,7 @@ namespace driver {
 			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114516, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 
 		// 获取模块信息 / Get module information
-		constexpr ULONG get_module =
+		constexpr ULONG get_module_info =
 			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114517, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 	}  // namespace codes
 
@@ -30,6 +30,11 @@ namespace driver {
 
 		SIZE_T size;        // 数据大小 / Data size
 		SIZE_T return_size; // 返回大小 / Return size
+	};
+
+	struct ModuleInfo {
+		uintptr_t base_addr;
+		uintptr_t size;
 	};
 
 	namespace error_codes {
@@ -56,26 +61,32 @@ namespace driver {
 	public:
 		// 构造函数 / Constructors
 		Driver();
-		Driver(const wchar_t* driver_path);
+		// Driver(const wchar_t* driver_path);
 
 		virtual ~Driver();  // 析构函数 / Destructor
 
+		bool setup();
+
 		// 设置驱动 / Set driver handle
-		bool setDriver(const wchar_t* driver_path);
+		bool set_driver(const wchar_t* driver_path);
 		// 附加到目标进程 / Attach to target process
 		bool attach();
 
 		// 获取驱动句柄 / Get driver handle
 		const HANDLE _driver() const;
 		// 获取附加的进程ID / Get attached process PID
-		const DWORD _pid() const;
+		const uint64_t _pid() const;
 		// 检查是否已附加 / Check if attached
 		const bool isAttached() const;
 		// 获取错误代码（参见driver::error_codes） / Get last error code (see driver::error_codes)
 		const int getError() const;
 
 		// 获取模块基地址 / Get module base address
-		const std::uintptr_t get_module_base(const wchar_t* module_name) const;
+		// const std::uintptr_t get_module_base(const wchar_t* module_name) const;
+
+		std::pair<std::optional<uintptr_t>, std::optional<uintptr_t>> get_module_info(const std::wstring_view& module_name);
+
+		bool read_memory_size_t(void* addr, void* buffer, const size_t size);
 
 		// 内存读取模板 / Memory read template
 		template <typename T>
@@ -96,7 +107,7 @@ namespace driver {
 
 		// 内存写入模板 / Memory write template
 		template <typename T>
-		void write_memory(const std::uintptr_t addr, const T& value) {
+		bool write_memory(const std::uintptr_t addr, const T& value) {
 			Request r = {
 				reinterpret_cast<PVOID>(addr),
 				(PVOID)&value,
@@ -104,12 +115,12 @@ namespace driver {
 				0
 			};
 
-			DeviceIoControl(this->driver_handle, codes::write, &r, sizeof(r), &r, sizeof(r), nullptr, nullptr);
+			return DeviceIoControl(this->driver_handle, codes::write, &r, sizeof(r), &r, sizeof(r), nullptr, nullptr);
 		}
 
 		// 指定大小的内存读取 / Memory read with specified size
 		template <typename T>
-		void read_memory_size(const std::uintptr_t addr, const T* value, size_t size) {
+		bool read_memory_size(const std::uintptr_t addr, const T* value, const size_t size) {
 			Request r = {
 				reinterpret_cast<PVOID>(addr),
 				(PVOID)value,
@@ -117,7 +128,10 @@ namespace driver {
 				0
 			};
 
-			DeviceIoControl(this->driver_handle, codes::read, &r, sizeof(r), &r, sizeof(r), nullptr, nullptr);
+			return DeviceIoControl(this->driver_handle, codes::read, &r, sizeof(r), &r, sizeof(r), nullptr, nullptr);
 		}
 	};
 }  // namespace driver
+
+
+inline const std::unique_ptr<driver::Driver> m_driver { new driver::Driver() };

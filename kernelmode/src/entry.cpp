@@ -27,7 +27,7 @@ namespace driver {
 		constexpr ULONG write =
 			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114516, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 
-		constexpr ULONG get_module =
+		constexpr ULONG get_module_info =
 			CTL_CODE(FILE_DEVICE_UNKNOWN, 0x114517, METHOD_BUFFERED, FILE_SPECIAL_ACCESS);
 	}  // namespace codes
 
@@ -40,69 +40,109 @@ namespace driver {
 		SIZE_T return_size;
 	};
 
+	struct ModuleInfo {
+		uintptr_t base_addr;
+		uintptr_t size;
+	};
 
-	ULONG64 GetModuleBasex64(PEPROCESS proc, UNICODE_STRING module_name, bool get_size) {
+	NTSTATUS GetModuleInfox64(PEPROCESS proc, const wchar_t* module_name, ModuleInfo* buffer) {
+		if (!proc || !buffer || !module_name) {
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		const SIZE_T max_name_length = 260 * sizeof(wchar_t);
+
+		wchar_t* kernel_module_name = (wchar_t*)ExAllocatePool2(POOL_FLAG_NON_PAGED, max_name_length + sizeof(wchar_t), 'NmeT');
+		if (!kernel_module_name) {
+			return STATUS_INSUFFICIENT_RESOURCES;
+		}
+
+		RtlZeroMemory(kernel_module_name, max_name_length + sizeof(wchar_t));
+
+		__try {
+			ProbeForRead((PVOID)module_name, sizeof(wchar_t), sizeof(WCHAR));
+
+			SIZE_T i = 0;
+			while (i < max_name_length / sizeof(wchar_t)) {
+				wchar_t ch;
+				ProbeForRead((PVOID)(module_name + i), sizeof(wchar_t), sizeof(WCHAR));
+				ch = module_name[i];
+
+				kernel_module_name[i] = ch;
+
+				if (ch == L'\0') {
+					break;
+				}
+
+				i++;
+			}
+
+			kernel_module_name[max_name_length / sizeof(wchar_t)] = L'\0';
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER) {
+			ExFreePoolWithTag(kernel_module_name, 'NmeT');
+			return GetExceptionCode();
+		}
+
+		if (kernel_module_name[0] == L'\0') {
+			ExFreePoolWithTag(kernel_module_name, 'NmeT');
+			return STATUS_INVALID_PARAMETER;
+		}
+
+		ModuleInfo kernelBuffer = { 0 };
+
 		PPEB pPeb = (PPEB)PsGetProcessPeb(proc);
-
 		if (!pPeb) {
-			return 0;
+			return STATUS_UNSUCCESSFUL;
 		}
 
 		KAPC_STATE state;
-
 		KeStackAttachProcess(proc, &state);
 
 		PPEB_LDR_DATA pLdr = (PPEB_LDR_DATA)pPeb->Ldr;
-
 		if (!pLdr) {
 			KeUnstackDetachProcess(&state);
-			return 0;
+			ExFreePoolWithTag(kernel_module_name, 'NmeT');
+			return STATUS_UNSUCCESSFUL;
 		}
 
-		// loop the linked list
-		for (PLIST_ENTRY list = (PLIST_ENTRY)pLdr->InLoadOrderModuleList.Flink;
-			list != &pLdr->InLoadOrderModuleList; list = (PLIST_ENTRY)list->Flink)
-		{
+
+
+		UNICODE_STRING uniStr = {};
+
+		RtlInitUnicodeString(&uniStr, kernel_module_name);
+
+		for (
+			PLIST_ENTRY list = (PLIST_ENTRY)pLdr->InLoadOrderModuleList.Flink;
+			list != &pLdr->InLoadOrderModuleList;
+			list = (PLIST_ENTRY)list->Flink
+			) {
 			PLDR_DATA_TABLE_ENTRY pEntry =
 				CONTAINING_RECORD(list, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-			if (RtlCompareUnicodeString(&pEntry->BaseDllName, &module_name, TRUE) ==
-				0) {
-				ULONG64 baseAddr = (ULONG64)pEntry->DllBase;
-				ULONG64 moduleSize = (ULONG64)pEntry->SizeOfImage; // get the size of the module
+			if (RtlCompareUnicodeString(&pEntry->BaseDllName, &uniStr, TRUE) == 0) {
+				kernelBuffer.base_addr = (ULONG64)pEntry->DllBase;
+				kernelBuffer.size = (ULONG64)pEntry->SizeOfImage;
+
 				KeUnstackDetachProcess(&state);
-				if (get_size) {
-					return moduleSize; // return the size of the module if get_size is TRUE
+				ExFreePoolWithTag(kernel_module_name, 'NmeT');
+
+				__try {
+					ProbeForWrite(buffer, sizeof(ModuleInfo), 1);
+					*buffer = kernelBuffer;
+					return STATUS_SUCCESS;
 				}
-				return baseAddr;
+				__except (EXCEPTION_EXECUTE_HANDLER) {
+					return GetExceptionCode();
+				}
 			}
 		}
 
 		KeUnstackDetachProcess(&state);
+		ExFreePoolWithTag(kernel_module_name, 'NmeT');
 
-		return 0; // failed
+		return STATUS_UNSUCCESSFUL; // 未找到模块
 	}
-
-	NTSTATUS GetModuleBaseProcess(PEPROCESS proc, ULONG64* buffer) {
-		NTSTATUS status = STATUS_UNSUCCESSFUL;
-
-		UNICODE_STRING module_name = {};
-
-		RtlInitUnicodeString(&module_name, L"client.dll");
-
-		ULONG64 addr = GetModuleBasex64(proc, module_name, false);
-
-		if (addr == 0) {
-			return status;
-		}
-
-		*buffer = addr;
-
-		status = STATUS_SUCCESS;
-
-		return status;
-	}
-
 	HANDLE find_process_id_by_name(const wchar_t* process_name) {
 		NTSTATUS status;
 		PVOID buffer;
@@ -205,8 +245,7 @@ namespace driver {
 
 		switch (control_code) {
 		case codes::attach:
-			if (target_process == nullptr)
-				status = attach(&target_process, reinterpret_cast<ULONG64*>(request->buffer));
+			status = attach(&target_process, reinterpret_cast<ULONG64*>(request->buffer));
 			break;
 
 		case codes::read:
@@ -219,9 +258,9 @@ namespace driver {
 				status = MmCopyVirtualMemory(PsGetCurrentProcess(), request->buffer, target_process, request->target, request->size, KernelMode, &request->return_size);
 			break;
 
-		case codes::get_module:
+		case codes::get_module_info:
 			if (target_process != nullptr)
-				status = GetModuleBaseProcess(target_process, reinterpret_cast<ULONG64*>(request->buffer));
+				status = GetModuleInfox64(target_process, reinterpret_cast<const wchar_t*>(request->target), reinterpret_cast<ModuleInfo*>(request->buffer));
 			break;
 
 		default:

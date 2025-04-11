@@ -2,6 +2,8 @@
 
 #define NT_SUCCESS(status) (static_cast<long>(status) >= 0)
 
+#include "../pch.hpp"
+
 struct __system_handle_t
 {
 	unsigned long m_process_id;
@@ -30,8 +32,8 @@ public:
 	bool setup();
 	std::optional<uint32_t> get_process_id(const std::string_view& process_name);
 	std::optional<void*> hijack_handle();
-	std::optional<c_address> find_pattern(const std::string_view& module_name, const std::string_view& pattern);
-	std::pair<std::optional<uintptr_t>, std::optional<uintptr_t>> get_module_info(const std::string_view& module_name);
+	std::optional<c_address> find_pattern(const std::wstring_view& module_name, const std::string_view& pattern);
+	std::pair<std::optional<uintptr_t>, std::optional<uintptr_t>> get_module_info(const std::wstring_view& module_name);
 	bool is_anticheat_running();
 
 	bool read_t(const uintptr_t address, void* buffer, uintptr_t size)
@@ -79,7 +81,8 @@ private:
 
 	bool read_memory(void* address, void* buffer, const size_t size)
 	{
-		return ReadProcessMemory(this->m_handle, reinterpret_cast<void*>(address), buffer, size, nullptr);
+		// return ReadProcessMemory(this->m_handle, reinterpret_cast<void*>(address), buffer, size, nullptr);
+		return m_driver->read_memory_size_t(address, buffer, size);
 	}
 };
 

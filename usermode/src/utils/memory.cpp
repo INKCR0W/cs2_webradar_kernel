@@ -5,25 +5,26 @@ bool c_memory::setup()
 	if (is_anticheat_running())
 		return {};
 
-	const auto process_id = this->get_process_id("cs2.exe");
-	if (!process_id.has_value())
-	{
-		LOG_ERROR("failed to get process id for 'cs2.exe'\n			  make sure the game is running");
-		return {};
-	}
+	//const auto process_id = this->get_process_id("cs2.exe");
+	//if (!process_id.has_value())
+	//{
+	//	LOG_ERROR("failed to get process id for 'cs2.exe'\n			  make sure the game is running");
+	//	return {};
+	//}
 
-	this->m_id = process_id.value();
+	//this->m_id = process_id.value();
 
-	auto handle = this->hijack_handle();
-	if (!handle.has_value())
-	{
-		LOG_WARNING("failed to hijack a handle for 'cs2.exe', we will continue using the classic method");
-		this->m_handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, this->m_id);
-	}
-	else
-		this->m_handle = handle.value();
+	//auto handle = this->hijack_handle();
+	//if (!handle.has_value())
+	//{
+	//	LOG_WARNING("failed to hijack a handle for 'cs2.exe', we will continue using the classic method");
+	//	this->m_handle = OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, false, this->m_id);
+	//}
+	//else
+	//	this->m_handle = handle.value();
 
-	return this->m_handle != nullptr;
+	//return this->m_handle != nullptr;
+	return true;
 }
 
 std::optional<uint32_t> c_memory::get_process_id(const std::string_view& process_name)
@@ -144,7 +145,7 @@ std::optional<void*> c_memory::hijack_handle()
 	return {};
 }
 
-std::optional<c_address> c_memory::find_pattern(const std::string_view& module_name, const std::string_view& pattern)
+std::optional<c_address> c_memory::find_pattern(const std::wstring_view& module_name, const std::string_view& pattern)
 {
 	constexpr auto pattern_to_bytes = [](const std::string_view& pattern)
 	{
@@ -211,30 +212,30 @@ std::optional<c_address> c_memory::find_pattern(const std::string_view& module_n
 	return {};
 }
 
-std::pair<std::optional<uintptr_t>, std::optional<uintptr_t>> c_memory::get_module_info(const std::string_view& module_name)
+std::pair<std::optional<uintptr_t>, std::optional<uintptr_t>> c_memory::get_module_info(const std::wstring_view& module_name)
 {
-	const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, this->m_id);
-	if (snapshot == INVALID_HANDLE_VALUE)
-		return {};
+	//const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, this->m_id);
+	//if (snapshot == INVALID_HANDLE_VALUE)
+	//	return {};
 
-	MODULEENTRY32 module_entry = { 0 };
-	module_entry.dwSize = sizeof(module_entry);
+	//MODULEENTRY32 module_entry = { 0 };
+	//module_entry.dwSize = sizeof(module_entry);
 
-	for (Module32First(snapshot, &module_entry); Module32Next(snapshot, &module_entry);)
-	{
-		auto equals_ignore_case = [](const std::string_view str_1, const std::string_view str_2)
-		{
-			return (str_1.size() == str_2.size()) && equal(str_1.begin(), str_1.end(), str_2.begin(), [](const char a, const char b)
-			{
-				return tolower(a) == tolower(b);
-			});
-		};
+	//for (Module32First(snapshot, &module_entry); Module32Next(snapshot, &module_entry);)
+	//{
+	//	auto equals_ignore_case = [](const std::string_view str_1, const std::string_view str_2)
+	//	{
+	//		return (str_1.size() == str_2.size()) && equal(str_1.begin(), str_1.end(), str_2.begin(), [](const char a, const char b)
+	//		{
+	//			return tolower(a) == tolower(b);
+	//		});
+	//	};
 
-		if (equals_ignore_case(module_entry.szModule, module_name))
-			return std::make_pair(reinterpret_cast<uintptr_t>(module_entry.modBaseAddr), static_cast<uintptr_t>(module_entry.modBaseSize));
-	}
+	//	if (equals_ignore_case(module_entry.szModule, module_name))
+	//		return std::make_pair(reinterpret_cast<uintptr_t>(module_entry.modBaseAddr), static_cast<uintptr_t>(module_entry.modBaseSize));
+	//}
 
-	return {};
+	return m_driver->get_module_info(module_name);
 }
 
 bool c_memory::is_anticheat_running()

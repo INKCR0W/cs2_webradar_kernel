@@ -7,6 +7,9 @@
 #define CLIENT_DLL "client.dll"
 #define ENGINE2_DLL "engine2.dll"
 #define SCHEMASYSTEM_DLL "schemasystem.dll"
+#define W_CLIENT_DLL L"client.dll"
+#define W_ENGINE2_DLL L"engine2.dll"
+#define W_SCHEMASYSTEM_DLL L"schemasystem.dll"
 
 /* game signatures */
 #define GET_SCHEMA_SYSTEM "48 89 05 ? ? ? ? 4c 8d 0d ? ? ? ? 0f b6 45 ? 4c 8d 45 ? 33 f6"
